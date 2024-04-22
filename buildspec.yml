@@ -1,0 +1,24 @@
+version: 0.2
+
+phases:
+  install: 
+    runtime-versions:
+      node: 16.20.2
+  pre_build: # commands to be run before build
+    commands:
+    - echo Logging in to Amazon ECR....
+    - aws --version
+    # login to Elastic container registry
+    - aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 382585723628.dkr.ecr.ap-southeast-1.amazonaws.com
+    - REPOSITORY_URI=382585723628.dkr.ecr.ap-southeast-1.amazonaws.com/shortlink
+    - IMAGE_TAG=latest
+  build:
+    commands:
+    - docker build -t shortlink:latest .
+    - docker tag shortlink:latest 382585723628.dkr.ecr.ap-southeast-1.amazonaws.com/shortlink:latest
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - docker image ls -a
+      - docker push 382585723628.dkr.ecr.ap-southeast-1.amazonaws.com/shortlink:latest
