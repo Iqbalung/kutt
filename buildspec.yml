@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install: 
     runtime-versions:
-      node: 16.20.2
+      nodejs: 16.20.2
   pre_build: # commands to be run before build
     commands:
     - echo Logging in to Amazon ECR....
