@@ -18,7 +18,7 @@ RUN chmod +x ./wait-for-it.sh
 # Build files
 RUN npm run build
 
-EXPOSE 3000
+EXPOSE 80
 
 # Running the app
 CMD [ "npm", "start" ]
