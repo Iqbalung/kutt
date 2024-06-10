@@ -1,6 +1,9 @@
 import { Handler } from "express";
 import query from "../queries";
 import * as utils from "../utils";
+import passport from "passport";
+import bcrypt from "bcryptjs";
+
 
 export const get = async (req, res) => {
   const domains = await query.domain.get({ user_id: req.user.id });
@@ -39,6 +42,9 @@ export const getUsers: Handler = async (req, res) => {
 };
 
 export const create: Handler = async (req, res) => {
+   const salt = await bcrypt.genSalt(12);
+  const password = await bcrypt.hash(req.body.password, salt);
+
   const user = await query.user.add({
     email: req.body.email,
     password: req.body.password
