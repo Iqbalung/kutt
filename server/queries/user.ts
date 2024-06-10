@@ -101,6 +101,7 @@ export const add = async (params: Add, user?: User) => {
     email: params.email,
     password: params.password,
     verification_token: uuid(),
+    verified: true,
     verification_expires: addMinutes(new Date(), 60).toISOString()
   };
 
