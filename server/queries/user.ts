@@ -4,6 +4,71 @@ import { addMinutes } from "date-fns";
 import redisCLient, * as redis from "../redis";
 import knex from "../knex";
 
+const selectable = [
+  "users.id",
+  "users.banned",
+  "users.email",
+  "users.apikey",
+  "users.created_at",
+  "users.updated_at"
+];
+
+interface TotalParams {
+  search?: string;
+}
+
+export const total = async (match: Partial<User>, params: TotalParams = {}) => {
+  const query = knex<User>("users");
+
+  Object.entries(match).forEach(([key, value]) => {
+    query.andWhere(key, ...(Array.isArray(value) ? value : [value]));
+  });
+
+  if (params.search) {
+    query.andWhereRaw("users.email ILIKE '%' || ? || '%'", [params.search]);
+  }
+
+  const [{ count }] = await query.count("id");
+
+  return typeof count === "string" ? parseInt(count) : count;
+};
+
+interface GetParams {
+  limit: number;
+  search?: string;
+  skip: number;
+}
+
+export const get = async (match: Partial<User>, params: GetParams) => {
+  const query = knex<User>("users")
+    .select(selectable)
+    .where(match)
+    .offset(params.skip)
+    .limit(params.limit);
+
+  if (params.search) {
+    query.andWhereRaw("users.email ILIKE '%' || ? || '%'", [params.search]);
+  }
+
+  const users: UserJoinedLink[] = (await query) as unknown as UserJoinedLink[];
+
+  // count users links
+  const links = await knex<Link>("links")
+    .select("user_id", knex.raw("count(*)"))
+    .whereIn(
+      "user_id",
+      users.map((u) => u.id)
+    )
+    .groupBy("user_id");
+
+  users.forEach((user) => {
+    const link = links.find((l) => l.user_id === user.id);
+    user.links = link ? parseInt(link["count"]) : 0;
+  });
+
+  return users;
+};
+
 export const find = async (match: Partial<User>) => {
   if (match.email || match.apikey) {
     const key = redis.key.user(match.email || match.apikey);

@@ -162,6 +162,13 @@ export const sanitize = {
     id: link.uuid,
     password: !!link.password,
     link: generateShortLink(link.address, link.domain)
+  }),
+  user: (user: User): UserSanitized => ({
+    ...user,
+    apikey: undefined,
+    password: undefined,
+    verification_token: undefined,
+    verification_expires: undefined
   })
 };
 
