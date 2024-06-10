@@ -79,6 +79,10 @@ const Header: FC = () => {
       <ALink href="/settings" title="Settings" forButton isNextLink>
         <Button height={[32, 40]}>Settings</Button>
       </ALink>
+      
+              <ALink href="/users" title="User" fontSize={[14, 16]} isNextLink>
+                Users
+              </ALink>
     </Li>
   );
 
@@ -128,11 +132,7 @@ const Header: FC = () => {
             pt={0}
             pb="2px"
           >
-            <Li>
-              <ALink href="/users" title="User" fontSize={[14, 16]} isNextLink>
-                Users
-              </ALink>
-            </Li>
+            
             <Li>
               <ALink
                 href="/report"
