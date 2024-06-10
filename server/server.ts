@@ -60,6 +60,10 @@ app.prepare().then(async () => {
     (req, res) => app.render(req, res, "/verify", { token: req.token })
   );
 
+  // Idon't know why if access /users, it will redirect to /404
+  // This is a temporary fix for that wkakakak
+  server.get("/users", (req, res) => app.render(req, res, "/users"));
+
   server.get("/:id", asyncHandler(links.redirect(app)));
 
   // Error handler
