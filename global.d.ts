@@ -158,3 +158,27 @@ declare namespace Express {
     };
   }
 }
+
+interface UserSanitized {
+  apikey?: string;
+  banned_by_id?: number;
+  banned: boolean;
+  change_email_address?: string;
+  change_email_expires?: string;
+  change_email_token?: string;
+  cooldowns?: string[];
+  created_at: string;
+  email: string;
+  id: number;
+  password: string;
+  reset_password_expires?: string;
+  reset_password_token?: string;
+  updated_at: string;
+  verification_expires?: string;
+  verification_token?: string;
+  verified?: boolean;
+}
+
+interface UserJoinedLink extends User {
+  links: number;
+}

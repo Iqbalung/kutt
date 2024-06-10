@@ -129,14 +129,8 @@ const Header: FC = () => {
             pb="2px"
           >
             <Li>
-              <ALink
-                href="//github.com/thedevs-network/kutt"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="GitHub"
-                fontSize={[14, 16]}
-              >
-                GitHub
+              <ALink href="/users" title="User" fontSize={[14, 16]} isNextLink>
+                Users
               </ALink>
             </Li>
             <Li>

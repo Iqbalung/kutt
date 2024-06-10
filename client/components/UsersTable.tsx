@@ -5,17 +5,13 @@ import { useFormState } from "react-use-form-state";
 import { Flex } from "rebass/styled-components";
 import styled, { css } from "styled-components";
 import { ifProp } from "styled-tools";
-import getConfig from "next/config";
-import QRCode from "qrcode.react";
-import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
-import ms from "ms";
 
-import { removeProtocol, withComma, errorMessage } from "../utils";
+import { errorMessage } from "../utils";
 import { useStoreActions, useStoreState } from "../store";
-import { Link as LinkType } from "../store/links";
+import { User } from "../store/users";
 import { Checkbox, TextInput } from "./Input";
 import { NavButton, Button } from "./Button";
-import { Col, RowCenter } from "./Layout";
+import { Col } from "./Layout";
 import Text, { H2, Span } from "./Text";
 import { useMessage } from "../hooks";
 import Animation from "./Animation";
@@ -25,9 +21,6 @@ import Table from "./Table";
 import ALink from "./ALink";
 import Modal from "./Modal";
 import Icon from "./Icon";
-import LogsTable from "./LogTable";
-
-const { publicRuntimeConfig } = getConfig();
 
 const Tr = styled(Flex).attrs({ as: "tr", px: [12, 12, 2] })``;
 const Th = styled(Flex)``;
@@ -74,6 +67,12 @@ const EditContent = styled(Col)`
   background-color: #fafafa;
 `;
 
+const ActionBox = styled(Flex)`
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+`;
+
 const Action = (props: React.ComponentProps<typeof Icon>) => (
   <Icon
     as="button"
@@ -93,10 +92,10 @@ const ckActionFlex = {
   flexShrink: [0.5, 0.5, 0.2],
   justifyContent: "flex-start"
 };
-const ogLinkFlex = { flexGrow: [1, 3, 7], flexShrink: [1, 3, 7] };
+const userEmailFlex = { flexGrow: [1, 3, 7], flexShrink: [1, 3, 7] };
 const createdFlex = { flexGrow: [1, 1, 2.5], flexShrink: [1, 1, 2.5] };
-const shortLinkFlex = { flexGrow: [1, 1, 3], flexShrink: [1, 1, 3] };
-const viewsFlex = {
+const userRoleFlex = { flexGrow: [1, 1, 3], flexShrink: [1, 1, 3] };
+const userLinksFlex = {
   flexGrow: [0.5, 0.5, 1],
   flexShrink: [0.5, 0.5, 1],
   justifyContent: "flex-end"
@@ -105,63 +104,44 @@ const actionsFlex = { flexGrow: [1, 1, 3], flexShrink: [1, 1, 3] };
 
 interface RowProps {
   index: number;
-  link: LinkType;
+  user: User;
   setDeleteModal: (number) => void;
   isSelected: boolean;
   setIsSelected: React.Dispatch<React.SetStateAction<boolean>>;
   reload: () => void;
 }
 
-interface BanForm {
-  host: boolean;
-  user: boolean;
-  userLinks: boolean;
-  domain: boolean;
-}
-
 interface EditForm {
-  target: string;
-  address: string;
-  description?: string;
-  expire_in?: string;
-  password?: string;
+  email: string;
+  role: string;
+  password: string;
+  banned: boolean;
 }
 
 const Row: FC<RowProps> = ({
   index,
-  link,
+  user,
   setDeleteModal,
   isSelected,
   setIsSelected,
   reload
 }) => {
   const isAdmin = useStoreState((s) => s.auth.isAdmin);
-  const ban = useStoreActions((s) => s.links.ban);
-  const edit = useStoreActions((s) => s.links.edit);
-  const [banFormState, { checkbox }] = useFormState<BanForm>();
-  const [editFormState, { text, label, password }] = useFormState<EditForm>(
-    {
-      target: link.target,
-      address: link.address,
-      description: link.description,
-      expire_in: link.expire_in
-        ? ms(differenceInMilliseconds(new Date(link.expire_in), new Date()), {
-            long: true
-          })
-        : "",
-      password: ""
-    },
-    { withIds: true }
-  );
+  const authEmail = useStoreState((s) => s.auth.email);
+  const update = useStoreActions((s) => s.users.update);
+  const [editFormState, { text, label, password }] = useFormState<EditForm>({
+    email: user.email,
+    role: user.role,
+    password: "",
+    banned: user.banned
+  });
   const [copied, setCopied] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [qrModal, setQRModal] = useState(false);
   const [banModal, setBanModal] = useState(false);
   const [banLoading, setBanLoading] = useState(false);
   const [banMessage, setBanMessage] = useMessage();
   const [editLoading, setEditLoading] = useState(false);
   const [editMessage, setEditMessage] = useMessage();
-  const [logsModal, setLogsModal] = useState(false);
 
   const onCopy = () => {
     setCopied(true);
@@ -173,11 +153,12 @@ const Row: FC<RowProps> = ({
   const onBan = async () => {
     setBanLoading(true);
     try {
-      const res = await ban({ id: link.id, ...banFormState.values });
-      setBanMessage(res.message, "green");
-      setTimeout(() => {
-        setBanModal(false);
-      }, 2000);
+      await update({
+        id: user.id,
+        banned: true
+      });
+      setBanMessage("User has been banned.", "green");
+      reload();
     } catch (err) {
       setBanMessage(errorMessage(err));
     }
@@ -188,7 +169,10 @@ const Row: FC<RowProps> = ({
     if (editLoading) return;
     setEditLoading(true);
     try {
-      await edit({ id: link.id, ...editFormState.values });
+      await update({
+        id: user.id,
+        password: editFormState.values.password
+      });
       setShowEdit(false);
       reload();
     } catch (err) {
@@ -206,40 +190,18 @@ const Row: FC<RowProps> = ({
 
   return (
     <>
-      <Tr key={link.id}>
+      <Tr key={user.id}>
         <Td {...ckActionFlex} alignItems="flex-start">
-          <Checkbox
-            label={""}
-            name={""}
-            checked={isSelected}
-            onChange={() => setIsSelected(!isSelected)}
-          />
+          {/* {authEmail !== user.email && (
+            <Checkbox
+              label={""}
+              name={""}
+              checked={isSelected}
+              onChange={() => setIsSelected(!isSelected)}
+            />
+          )} */}
         </Td>
-        <Td {...ogLinkFlex} withFade>
-          <Col alignItems="flex-start">
-            <ALink href={link.target}>{link.target}</ALink>
-            {link.description && (
-              <Text fontSize={[13, 14]} color="#888">
-                {link.description}
-              </Text>
-            )}
-          </Col>
-        </Td>
-        <Td {...createdFlex} flexDirection="column" alignItems="flex-start">
-          <Text>{formatDistanceToNow(new Date(link.created_at))} ago</Text>
-          {link.expire_in && (
-            <Text fontSize={[13, 14]} color="#888">
-              Expires in{" "}
-              {ms(
-                differenceInMilliseconds(new Date(link.expire_in), new Date()),
-                {
-                  long: true
-                }
-              )}
-            </Text>
-          )}
-        </Td>
-        <Td {...shortLinkFlex} withFade>
+        <Td {...userEmailFlex} withFade>
           {copied ? (
             <Animation
               minWidth={32}
@@ -260,7 +222,7 @@ const Row: FC<RowProps> = ({
             </Animation>
           ) : (
             <Animation minWidth={32} offset="-10px" duration="0.2s">
-              <CopyToClipboard text={link.link} onCopy={onCopy}>
+              <CopyToClipboard text={user.email} onCopy={onCopy}>
                 <Action
                   name="copy"
                   strokeWidth="2.5"
@@ -270,27 +232,19 @@ const Row: FC<RowProps> = ({
               </CopyToClipboard>
             </Animation>
           )}
-          <ALink href={link.link}>{removeProtocol(link.link)}</ALink>
+          <ALink href="#">
+            <Text>{user.email}</Text>
+          </ALink>
         </Td>
-        <Td {...viewsFlex}>{withComma(link.visit_count)}</Td>
+        <Td {...createdFlex} flexDirection="column" alignItems="flex-start">
+          <Text>{formatDistanceToNow(new Date(user.created_at))} ago</Text>
+        </Td>
+        <Td {...userRoleFlex} withFade>
+          {user.role}
+        </Td>
+        <Td {...userLinksFlex}>{user.links || 0}</Td>
         <Td {...actionsFlex} justifyContent="flex-end">
-          {link.password && (
-            <>
-              <Tooltip id={`${index}-tooltip-password`}>
-                Password protected
-              </Tooltip>
-              <Action
-                as="span"
-                data-tip
-                data-for={`${index}-tooltip-password`}
-                name="key"
-                stroke={"#bbb"}
-                strokeWidth="2.5"
-                backgroundColor="none"
-              />
-            </>
-          )}
-          {link.banned && (
+          {/* {user.banned && (
             <>
               <Tooltip id={`${index}-tooltip-banned`}>Banned</Tooltip>
               <Action
@@ -303,36 +257,7 @@ const Row: FC<RowProps> = ({
                 backgroundColor="none"
               />
             </>
-          )}
-          {link.visit_count > 0 && (
-            <ALink
-              href={`/stats?id=${link.id}`}
-              title="View stats"
-              forButton
-              isNextLink
-            >
-              <Action
-                name="pieChart"
-                stroke={Colors.PieIcon}
-                strokeWidth="2.5"
-                backgroundColor={Colors.PieIconBg}
-              />
-            </ALink>
-          )}
-          <Action
-            name="qrcode"
-            stroke="none"
-            fill={Colors.QrCodeIcon}
-            backgroundColor={Colors.QrCodeIconBg}
-            onClick={() => setQRModal(true)}
-          />
-          <Action
-            name="viewLogs"
-            stroke="none"
-            fill={Colors.LogIcon}
-            backgroundColor={Colors.LogIconBg}
-            onClick={() => setLogsModal(true)}
-          />
+          )} */}
           <Action
             name="editAlt"
             strokeWidth="2.5"
@@ -340,23 +265,24 @@ const Row: FC<RowProps> = ({
             backgroundColor={Colors.EditIconBg}
             onClick={toggleEdit}
           />
-          {isAdmin && !link.banned && (
+          {/* {isAdmin && user.email !== authEmail && (
             <Action
-              name="stop"
+              name={user.banned ? "key" : "stop"}
               strokeWidth="2"
-              stroke={Colors.StopIcon}
-              backgroundColor={Colors.StopIconBg}
+              stroke={user.banned ? Colors.CopyIcon : Colors.StopIcon}
+              backgroundColor="white"
               onClick={() => setBanModal(true)}
             />
+          )} */}
+          {isAdmin && user.email !== authEmail && (
+            <Action
+              name="trash"
+              strokeWidth="2.5"
+              stroke={Colors.TrashIcon}
+              backgroundColor={Colors.TrashIconBg}
+              onClick={() => setDeleteModal(index)}
+            />
           )}
-          <Action
-            mr={0}
-            name="trash"
-            strokeWidth="2"
-            stroke={Colors.TrashIcon}
-            backgroundColor={Colors.TrashIconBg}
-            onClick={() => setDeleteModal(index)}
-          />
         </Td>
       </Tr>
       {showEdit && (
@@ -371,17 +297,17 @@ const Row: FC<RowProps> = ({
             <Flex alignItems="flex-start" width={1}>
               <Col alignItems="flex-start" mr={3}>
                 <Text
-                  {...label("target")}
+                  {...label("email")}
                   as="label"
                   mb={2}
                   fontSize={[14, 15]}
                   bold
                 >
-                  Target:
+                  Email:
                 </Text>
                 <Flex as="form">
                   <TextInput
-                    {...text("target")}
+                    {...text("email")}
                     placeholder="Target..."
                     placeholderSize={[13, 14]}
                     fontSize={[14, 15]}
@@ -390,30 +316,31 @@ const Row: FC<RowProps> = ({
                     pl={[3, 24]}
                     pr={[3, 24]}
                     required
+                    readOnly
                   />
                 </Flex>
               </Col>
               <Col alignItems="flex-start" mr={3}>
                 <Text
-                  {...label("address")}
+                  {...label("role")}
                   as="label"
                   mb={2}
                   fontSize={[14, 15]}
                   bold
                 >
-                  {link.domain || publicRuntimeConfig.DEFAULT_DOMAIN}/
+                  Role
                 </Text>
                 <Flex as="form">
                   <TextInput
-                    {...text("address")}
-                    placeholder="Custom address..."
+                    {...text("role")}
+                    placeholder="Role"
                     placeholderSize={[13, 14]}
                     fontSize={[14, 15]}
                     height={[40, 44]}
                     width={[1, 210, 240]}
                     pl={[3, 24]}
                     pr={[3, 24]}
-                    required
+                    readOnly
                   />
                 </Flex>
               </Col>
@@ -432,7 +359,7 @@ const Row: FC<RowProps> = ({
                     {...password({
                       name: "password"
                     })}
-                    placeholder={link.password ? "••••••••" : "Password..."}
+                    placeholder={"••••••••"}
                     autocomplete="off"
                     data-lpignore
                     pl={[3, 24]}
@@ -441,56 +368,6 @@ const Row: FC<RowProps> = ({
                     fontSize={[14, 15]}
                     height={[40, 44]}
                     width={[1, 210, 240]}
-                  />
-                </Flex>
-              </Col>
-            </Flex>
-            <Flex alignItems="flex-start" width={1} mt={3}>
-              <Col alignItems="flex-start" mr={3}>
-                <Text
-                  {...label("description")}
-                  as="label"
-                  mb={2}
-                  fontSize={[14, 15]}
-                  bold
-                >
-                  Description:
-                </Text>
-                <Flex as="form">
-                  <TextInput
-                    {...text("description")}
-                    placeholder="description..."
-                    placeholderSize={[13, 14]}
-                    fontSize={[14, 15]}
-                    height={[40, 44]}
-                    width={[1, 300, 420]}
-                    pl={[3, 24]}
-                    pr={[3, 24]}
-                    required
-                  />
-                </Flex>
-              </Col>
-              <Col alignItems="flex-start">
-                <Text
-                  {...label("expire_in")}
-                  as="label"
-                  mb={2}
-                  fontSize={[14, 15]}
-                  bold
-                >
-                  Expire in:
-                </Text>
-                <Flex as="form">
-                  <TextInput
-                    {...text("expire_in")}
-                    placeholder="2 minutes/hours/days"
-                    placeholderSize={[13, 14]}
-                    fontSize={[14, 15]}
-                    height={[40, 44]}
-                    width={[1, 210, 240]}
-                    pl={[3, 24]}
-                    pr={[3, 24]}
-                    required
                   />
                 </Flex>
               </Col>
@@ -518,41 +395,18 @@ const Row: FC<RowProps> = ({
         </EditContent>
       )}
       <Modal
-        id="table-logs-modal"
-        show={logsModal}
-        closeHandler={() => setLogsModal(false)}
-      >
-        <LogsTable link={link} reload={async () => reload()} />
-      </Modal>
-      <Modal
-        id="table-qrcode-modal"
-        minWidth="max-content"
-        show={qrModal}
-        closeHandler={() => setQRModal(false)}
-      >
-        <RowCenter width={192}>
-          <QRCode size={192} value={link.link} />
-        </RowCenter>
-      </Modal>
-      <Modal
         id="table-ban-modal"
         show={banModal}
         closeHandler={() => setBanModal(false)}
       >
         <>
           <H2 mb={24} textAlign="center" bold>
-            Ban link?
+            Ban user?
           </H2>
           <Text mb={24} textAlign="center">
-            Are you sure do you want to ban the link{" "}
-            <Span bold>&quot;{removeProtocol(link.link)}&quot;</Span>?
+            Are you sure do you want to ban the user{" "}
+            <Span bold>&quot;{user.email}&quot;</Span>?
           </Text>
-          <RowCenter>
-            <Checkbox {...checkbox("user")} label="User" mb={12} />
-            <Checkbox {...checkbox("userLinks")} label="User links" mb={12} />
-            <Checkbox {...checkbox("host")} label="Host" mb={12} />
-            <Checkbox {...checkbox("domain")} label="Domain" mb={12} />
-          </RowCenter>
           <Flex justifyContent="center" mt={4}>
             {banLoading ? (
               <>
@@ -587,10 +441,12 @@ interface Form {
   search: string;
 }
 
-const LinksTable: FC = () => {
+const UsersTable: FC = () => {
   const isAdmin = useStoreState((s) => s.auth.isAdmin);
-  const links = useStoreState((s) => s.links);
-  const { get, remove } = useStoreActions((s) => s.links);
+  const users = useStoreState((s) => s.users);
+  const authEmail = useStoreState((s) => s.auth.email);
+  const create = useStoreActions((s) => s.users.create);
+  const { get, remove } = useStoreActions((s) => s.users);
   const [tableMessage, setTableMessage] = useState("No links to show.");
   const [deleteModal, setDeleteModal] = useState(-1);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -600,8 +456,80 @@ const LinksTable: FC = () => {
     { withIds: true }
   );
 
+  const [createModal, setCreateModal] = useState(false);
+  const [createFormState, { text: createText }] = useFormState({
+    email: "",
+    password: "",
+    passwordConfirm: "",
+    role: "user"
+  });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createFormMessage, setCreateFormMessage] = useMessage();
+
+  const onCreateUser = async () => {
+    if (createLoading) return;
+
+    if (!createFormState.values.email) {
+      setCreateFormMessage("Email is required.");
+      return;
+    }
+
+    if (
+      !createFormState.values.email.match(
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+      )
+    ) {
+      setCreateFormMessage("Invalid email.");
+      return;
+    }
+
+    if (!createFormState.values.password) {
+      setCreateFormMessage("Password is required.");
+      return;
+    }
+
+    if (
+      createFormState.values.password !== createFormState.values.passwordConfirm
+    ) {
+      setCreateFormMessage("Passwords do not match.");
+      return;
+    }
+
+    if (createFormState.values.password.length < 8) {
+      setCreateFormMessage("Password must be at least 8 characters.");
+      return;
+    }
+
+    setCreateLoading(true);
+    setCreateFormMessage("");
+    try {
+      console.log("here");
+      await create({
+        email: createFormState.values.email,
+        password: createFormState.values.password
+      });
+
+      await get(options);
+
+      setCreateModal(false);
+      createFormState.reset();
+      setCreateFormMessage("");
+    } catch (err) {
+      setCreateFormMessage(errorMessage(err));
+    }
+    setCreateLoading(false);
+  };
+
+  const onCloseCreateModal = () => {
+    if (!createLoading) {
+      setCreateModal(false);
+      createFormState.reset();
+      setCreateFormMessage("");
+    }
+  };
+
   const options = formState.values;
-  const linkToDelete = links.items[deleteModal];
+  const userToDelete = users.items[deleteModal];
 
   useEffect(() => {
     get(options).catch((err) =>
@@ -617,7 +545,7 @@ const LinksTable: FC = () => {
   const onDelete = async () => {
     setDeleteLoading(true);
     try {
-      await remove(linkToDelete.id);
+      await remove(userToDelete.id);
       await get(options);
       setDeleteModal(-1);
     } catch (err) {
@@ -630,13 +558,13 @@ const LinksTable: FC = () => {
     try {
       setDeleteLoading(true);
 
-      for (let i = 0; i < linksToDelete.length; i++) {
-        await remove(linksToDelete[i].id);
+      for (let i = 0; i < usersToDelete.length; i++) {
+        await remove(usersToDelete[i].id);
       }
 
       await get(options);
 
-      setLinksToDelete([]);
+      setUsersToDelete([]);
       setShowSelectedDeleteModal(false);
     } catch (err) {
       setDeleteMessage(errorMessage(err));
@@ -649,57 +577,61 @@ const LinksTable: FC = () => {
     formState.setField("skip", (parseInt(options.skip) + nextPage).toString());
   };
 
-  const [selectedLinks, setSelectedLinks] = useState<LinkType[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [selectAll, setSelectAll] = useState(false);
-  const [linksToDelete, setLinksToDelete] = useState<LinkType[]>([]);
+  const [usersToDelete, setUsersToDelete] = useState<User[]>([]);
 
-  const toggleSelectAllLinks = () => {
+  const toggleSelectAllUsers = () => {
     setSelectAll(!selectAll);
 
-    const updateSelectedLinks = links.items.map((link) => {
+    const updateSelectedUsers = users.items.map((user) => {
       return {
-        ...link,
+        ...user,
         isSelected: !selectAll
       };
     });
 
-    setSelectedLinks(updateSelectedLinks);
+    setSelectedUsers(updateSelectedUsers.filter((u) => u.email !== authEmail));
   };
 
   const handleRowSelectionChange = (index: number, isSelected: boolean) => {
-    const updatedSelectedLinks = [...selectedLinks];
+    const updatedSelectedUsers = [...selectedUsers];
 
-    if (index >= 0 && index < updatedSelectedLinks.length) {
-      updatedSelectedLinks[index] = {
-        ...updatedSelectedLinks[index],
+    if (index >= 0 && index < updatedSelectedUsers.length) {
+      updatedSelectedUsers[index] = {
+        ...updatedSelectedUsers[index],
         isSelected
       };
 
-      const allRowsSelected = updatedSelectedLinks.every(
-        (link) => link.isSelected
+      const allRowsSelected = updatedSelectedUsers.every(
+        (user) => user.isSelected
       );
 
       setSelectAll(allRowsSelected);
     }
 
-    setSelectedLinks(updatedSelectedLinks);
-    setLinksToDelete(updatedSelectedLinks.filter((v) => v.isSelected));
+    setSelectedUsers(updatedSelectedUsers.filter((u) => u.email !== authEmail));
+    setUsersToDelete(
+      updatedSelectedUsers
+        .filter((u) => u.email !== authEmail)
+        .filter((v) => v.isSelected)
+    );
   };
 
   const [showSelectedDeleteModal, setShowSelectedDeleteModal] =
     useState<boolean>(false);
 
   useEffect(() => {
-    const updatedSelectedLinks = links.items.map((link) => {
+    const updatedSelectedUsers = users.items.map((user) => {
       return {
-        ...link,
+        ...user,
         isSelected: selectAll
       };
     });
 
-    setSelectedLinks(updatedSelectedLinks);
-    setLinksToDelete(updatedSelectedLinks.filter((v) => v.isSelected));
-  }, [links.items, selectAll]);
+    setSelectedUsers(updatedSelectedUsers.filter((u) => u.email !== authEmail));
+    setUsersToDelete(updatedSelectedUsers.filter((v) => v.isSelected));
+  }, [users.items, selectAll, authEmail]);
 
   const Nav = (
     <Th
@@ -740,7 +672,7 @@ const LinksTable: FC = () => {
         <NavButton
           onClick={onNavChange(parseInt(options.limit))}
           disabled={
-            parseInt(options.skip) + parseInt(options.limit) > links.total
+            parseInt(options.skip) + parseInt(options.limit) > users.total
           }
           ml={12}
           px={2}
@@ -752,10 +684,15 @@ const LinksTable: FC = () => {
   );
 
   return (
-    <Col width={1200} maxWidth="95%" margin="40px 0 120px" my={6}>
-      <H2 mb={3} light>
-        Recent shortened links.
-      </H2>
+    <Col width={1200} maxWidth="95%" margin="40px 0 120px" my={4}>
+      <ActionBox mb={4}>
+        <H2 light>Users</H2>
+        {isAdmin && (
+          <NavButton height={33} onClick={() => setCreateModal(true)}>
+            Add User <Icon name="plus" stroke="black" ml={2} />
+          </NavButton>
+        )}
+      </ActionBox>
       <Table scrollWidth="1000px">
         <thead>
           <Tr justifyContent="space-between">
@@ -773,28 +710,16 @@ const LinksTable: FC = () => {
                   br="3px"
                   bbw="2px"
                 />
-
-                {isAdmin && (
-                  <Checkbox
-                    {...label("all")}
-                    {...checkbox("all")}
-                    label="All links"
-                    ml={3}
-                    fontSize={[14, 15]}
-                    width={[15, 16]}
-                    height={[15, 16]}
-                  />
-                )}
               </Flex>
 
               <Flex mx={[4]}>
-                {selectedLinks.filter((v) => v.isSelected).length > 0 && (
+                {selectedUsers.filter((v) => v.isSelected).length > 0 && (
                   <NavButton
                     height={33}
                     onClick={() => setShowSelectedDeleteModal(true)}
                   >
                     Delete Selected (
-                    {selectedLinks.filter((v) => v.isSelected).length})
+                    {selectedUsers.filter((v) => v.isSelected).length})
                   </NavButton>
                 )}
               </Flex>
@@ -803,38 +728,38 @@ const LinksTable: FC = () => {
           </Tr>
           <Tr>
             <Th {...ckActionFlex}>
-              <Checkbox
+              {/* <Checkbox
                 name={"Select All"}
                 label={""}
                 checked={selectAll}
-                onChange={toggleSelectAllLinks}
-              />
+                onChange={toggleSelectAllUsers}
+              /> */}
             </Th>
-            <Th {...ogLinkFlex}>Original URL</Th>
+            <Th {...userEmailFlex}>Email</Th>
             <Th {...createdFlex}>Created</Th>
-            <Th {...shortLinkFlex}>Short URL</Th>
-            <Th {...viewsFlex}>Views</Th>
+            <Th {...userRoleFlex}>Role</Th>
+            <Th {...userLinksFlex}>Links</Th>
             <Th {...actionsFlex}></Th>
           </Tr>
         </thead>
-        <tbody style={{ opacity: links.loading ? 0.4 : 1 }}>
-          {!links.items.length ? (
+        <tbody style={{ opacity: users.loading ? 0.4 : 1 }}>
+          {!users.items.length ? (
             <Tr width={1} justifyContent="center">
               <Td flex="1 1 auto" justifyContent="center">
                 <Text fontSize={18} light>
-                  {links.loading ? "Loading links..." : tableMessage}
+                  {users.loading ? "Loading users..." : tableMessage}
                 </Text>
               </Td>
             </Tr>
           ) : (
             <>
-              {links.items.map((link, index) => (
+              {users.items.map((user, index) => (
                 <Row
                   setDeleteModal={setDeleteModal}
                   index={index}
-                  link={link}
-                  key={link.id}
-                  isSelected={selectedLinks[index]?.isSelected || false}
+                  user={user}
+                  key={user.id}
+                  isSelected={selectedUsers[index]?.isSelected || false}
                   setIsSelected={(isSelected: boolean) =>
                     handleRowSelectionChange(index, isSelected)
                   }
@@ -853,14 +778,14 @@ const LinksTable: FC = () => {
         show={deleteModal > -1}
         closeHandler={() => setDeleteModal(-1)}
       >
-        {linkToDelete && (
+        {userToDelete && (
           <>
             <H2 mb={24} textAlign="center" bold>
-              Delete link?
+              Delete user?
             </H2>
             <Text textAlign="center">
-              Are you sure do you want to delete the link{" "}
-              <Span bold>&quot;{removeProtocol(linkToDelete.link)}&quot;</Span>?
+              Are you sure do you want to delete the user{" "}
+              <Span bold>&quot;{userToDelete.email}&quot;</Span>?
             </Text>
             <Flex justifyContent="center" mt={44}>
               {deleteLoading ? (
@@ -899,13 +824,13 @@ const LinksTable: FC = () => {
           }
         }}
       >
-        {linksToDelete.length > 0 && (
+        {usersToDelete.length > 0 && (
           <>
             <H2 mb={24} textAlign="center" bold>
-              Delete all selected links?
+              Delete all selected users?
             </H2>
             <Text textAlign="center">
-              Are you sure you want to delete the selected links?
+              Are you sure you want to delete the selected users?
             </Text>
             <Flex justifyContent="center" mt={44}>
               {deleteLoading ? (
@@ -935,8 +860,152 @@ const LinksTable: FC = () => {
           </>
         )}
       </Modal>
+      <Modal
+        id="create-user-modal"
+        show={createModal}
+        closeHandler={onCloseCreateModal}
+      >
+        <H2 mb={24} textAlign="center" bold>
+          Add User
+        </H2>
+        <Col mt={4}>
+          <Flex alignItems="center" justifyContent="center">
+            <Col width={1}>
+              <Text
+                {...label("email")}
+                as="label"
+                mb={2}
+                fontSize={[14, 15]}
+                bold
+              >
+                Email:
+              </Text>
+              <Flex as="form">
+                <TextInput
+                  {...createText("email")}
+                  placeholder="example@user.com"
+                  placeholderSize={[13, 14]}
+                  fontSize={[14, 15]}
+                  height={[40, 44]}
+                  width={[1, 300, 300]}
+                  pl={[3, 24]}
+                  pr={[3, 24]}
+                  required
+                  readOnly={createLoading}
+                />
+              </Flex>
+            </Col>
+            <Col width={1} ml={4}>
+              <Text
+                {...label("role")}
+                as="label"
+                mb={2}
+                fontSize={[14, 15]}
+                bold
+              >
+                Role
+              </Text>
+              <Flex as="div">
+                <TextInput
+                  {...createText("role")}
+                  placeholder=""
+                  value={"user"}
+                  placeholderSize={[13, 14]}
+                  fontSize={[14, 15]}
+                  height={[40, 44]}
+                  width={[1, 300, 300]}
+                  pl={[3, 24]}
+                  pr={[3, 24]}
+                  readOnly
+                />
+              </Flex>
+            </Col>
+          </Flex>
+          <Flex alignItems="center" justifyContent="center" mt={4}>
+            <Col width={1}>
+              <Text
+                {...label("password")}
+                as="label"
+                mb={2}
+                fontSize={[14, 15]}
+                bold
+              >
+                Password
+              </Text>
+              <Flex as="div">
+                <TextInput
+                  {...createText("password")}
+                  placeholder={"••••••••"}
+                  type="password"
+                  autocomplete="off"
+                  data-lpignore
+                  pl={[3, 24]}
+                  pr={[3, 24]}
+                  placeholderSize={[13, 14]}
+                  fontSize={[14, 15]}
+                  height={[40, 44]}
+                  width={[1, 300, 300]}
+                  readOnly={createLoading}
+                />
+              </Flex>
+            </Col>
+            <Col width={1} ml={4}>
+              <Text
+                {...label("confirm-password")}
+                as="label"
+                mb={2}
+                fontSize={[14, 15]}
+                bold
+              >
+                Confirm Password
+              </Text>
+              <Flex as="div">
+                <TextInput
+                  {...createText("passwordConfirm")}
+                  placeholder={"••••••••"}
+                  type="password"
+                  autocomplete="off"
+                  data-lpignore
+                  pl={[3, 24]}
+                  pr={[3, 24]}
+                  placeholderSize={[13, 14]}
+                  fontSize={[14, 15]}
+                  height={[40, 44]}
+                  width={[1, 300, 300]}
+                  readOnly={createLoading}
+                />
+              </Flex>
+            </Col>
+          </Flex>
+        </Col>
+        {createFormMessage.text && (
+          <Flex justifyContent="center" mt={3}>
+            <Text fontSize={15} color={createFormMessage.color}>
+              {createFormMessage.text}
+            </Text>
+          </Flex>
+        )}
+        <Flex justifyContent="center" mt={44}>
+          <Button
+            color="gray"
+            mr={3}
+            onClick={onCloseCreateModal}
+            disabled={createLoading}
+          >
+            Cancel
+          </Button>
+          <Button color="blue" ml={3} onClick={onCreateUser}>
+            <Icon
+              name={createLoading ? "spinner" : "plus"}
+              stroke="white"
+              mr={2}
+            />
+            {createLoading ? "Creating..." : "Create"}
+          </Button>
+        </Flex>
+      </Modal>
     </Col>
   );
 };
 
-export default LinksTable;
+export default UsersTable;
