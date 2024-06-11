@@ -132,18 +132,7 @@ const Header: FC = () => {
             pt={0}
             pb="2px"
           >
-            {isAuthenticated && isAdmin && (
-              <Li>
-                <ALink
-                  href="/users"
-                  title="User"
-                  fontSize={[14, 16]}
-                  isNextLink
-                >
-                  Users
-                </ALink>
-              </Li>
-            )}
+            
             <Li>
               <ALink
                 href="/report"
