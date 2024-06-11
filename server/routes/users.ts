@@ -19,6 +19,7 @@ router.get(
   "/all",
   asyncHandler(auth.apikey),
   asyncHandler(auth.jwt),
+  helpers.admin,
   helpers.query,
   asyncHandler(user.getUsers)
 );
@@ -27,6 +28,7 @@ router.post(
   "/create",
   asyncHandler(auth.apikey),
   asyncHandler(auth.jwt),
+  helpers.admin,
   validators.createUser,
   asyncHandler(helpers.verify),
   asyncHandler(user.create)
@@ -36,6 +38,7 @@ router.patch(
   "/:id",
   asyncHandler(auth.apikey),
   asyncHandler(auth.jwt),
+  helpers.admin,
   validators.editUser,
   asyncHandler(helpers.verify),
   asyncHandler(user.edit)
@@ -45,6 +48,7 @@ router.delete(
   "/delete/:id",
   asyncHandler(auth.apikey),
   asyncHandler(auth.jwt),
+  helpers.admin,
   validators.deleteUserWithId,
   asyncHandler(helpers.verify),
   asyncHandler(user.removeById)
