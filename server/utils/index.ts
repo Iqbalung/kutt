@@ -22,10 +22,14 @@ export class CustomError extends Error {
   }
 }
 
-export const isAdmin = (email: string): boolean =>
-  env.ADMIN_EMAILS.split(",")
-    .map((e) => e.trim())
-    .includes(email);
+// export const isAdmin = (email: string): boolean =>
+//   env.ADMIN_EMAILS.split(",")
+//     .map((e) => e.trim())
+//     .includes(email);
+
+export const isAdmin = (user: User): boolean => {
+  return user.role === "admin";
+};
 
 export const signToken = (user: UserJoined) =>
   JWT.sign(
@@ -33,7 +37,7 @@ export const signToken = (user: UserJoined) =>
       iss: "ApiAuth",
       sub: user.email,
       domain: user.domain || "",
-      admin: isAdmin(user.email),
+      admin: isAdmin(user),
       iat: parseInt((new Date().getTime() / 1000).toFixed(0)),
       exp: parseInt((addDays(new Date(), 7).getTime() / 1000).toFixed(0))
     } as Record<string, any>,

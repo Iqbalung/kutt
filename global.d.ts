@@ -22,6 +22,7 @@ interface User {
   verification_expires?: string;
   verification_token?: string;
   verified?: boolean;
+  role?: string;
 }
 
 interface UserJoined extends User {
@@ -177,6 +178,7 @@ interface UserSanitized {
   verification_expires?: string;
   verification_token?: string;
   verified?: boolean;
+  role?: string;
 }
 
 interface UserJoinedLink extends User {

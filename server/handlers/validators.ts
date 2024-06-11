@@ -380,7 +380,12 @@ export const createUser = [
       const user = await query.user.find({ email: value });
       if (user) return Promise.reject();
     })
-    .withMessage("You can't use this email address.")
+    .withMessage("You can't use this email address."),
+  body("role", "Role is not valid.")
+    .optional({ nullable: true, checkFalsy: true })
+    .isString()
+    .isIn(["user", "admin"])
+    .withMessage("Role must be 'user' or 'admin'.")
 ];
 
 export const editUser = [

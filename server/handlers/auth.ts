@@ -43,7 +43,7 @@ const authenticate = (
       if (user) {
         req.user = {
           ...user,
-          admin: utils.isAdmin(user.email)
+          admin: utils.isAdmin(user)
         };
         return next();
       }

@@ -9,7 +9,7 @@ import { ifProp } from "styled-tools";
 import { errorMessage } from "../utils";
 import { useStoreActions, useStoreState } from "../store";
 import { User } from "../store/users";
-import { Checkbox, TextInput } from "./Input";
+import { Checkbox, Select, TextInput } from "./Input";
 import { NavButton, Button } from "./Button";
 import { Col } from "./Layout";
 import Text, { H2, Span } from "./Text";
@@ -129,17 +129,21 @@ const Row: FC<RowProps> = ({
   const isAdmin = useStoreState((s) => s.auth.isAdmin);
   const authEmail = useStoreState((s) => s.auth.email);
   const update = useStoreActions((s) => s.users.update);
-  const [editFormState, { text, label, password }] = useFormState<EditForm>({
-    email: user.email,
-    role: user.role,
-    password: "",
-    banned: user.banned
-  });
+  const [editFormState, { text, label, password, select }] =
+    useFormState<EditForm>({
+      email: user.email,
+      role: user.role,
+      password: "",
+      banned: user.banned
+    });
   const [copied, setCopied] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [banModal, setBanModal] = useState(false);
   const [banLoading, setBanLoading] = useState(false);
   const [banMessage, setBanMessage] = useMessage();
+  const [unBanModal, setUnBanModal] = useState(false);
+  const [unBanLoading, setUnBanLoading] = useState(false);
+  const [unBanMessage, setUnBanMessage] = useMessage();
   const [editLoading, setEditLoading] = useState(false);
   const [editMessage, setEditMessage] = useMessage();
 
@@ -165,13 +169,29 @@ const Row: FC<RowProps> = ({
     setBanLoading(false);
   };
 
+  const onUnBan = async () => {
+    setUnBanLoading(true);
+    try {
+      await update({
+        id: user.id,
+        banned: false
+      });
+      setUnBanMessage("User has been unbanned.", "green");
+      reload();
+    } catch (err) {
+      setUnBanMessage(errorMessage(err));
+    }
+    setUnBanLoading(false);
+  };
+
   const onEdit = async () => {
     if (editLoading) return;
     setEditLoading(true);
     try {
       await update({
         id: user.id,
-        password: editFormState.values.password
+        password: editFormState.values.password,
+        role: editFormState.values.role
       });
       setShowEdit(false);
       reload();
@@ -244,7 +264,7 @@ const Row: FC<RowProps> = ({
         </Td>
         <Td {...userLinksFlex}>{user.links || 0}</Td>
         <Td {...actionsFlex} justifyContent="flex-end">
-          {/* {user.banned && (
+          {user.banned && (
             <>
               <Tooltip id={`${index}-tooltip-banned`}>Banned</Tooltip>
               <Action
@@ -257,7 +277,7 @@ const Row: FC<RowProps> = ({
                 backgroundColor="none"
               />
             </>
-          )} */}
+          )}
           <Action
             name="editAlt"
             strokeWidth="2.5"
@@ -265,24 +285,39 @@ const Row: FC<RowProps> = ({
             backgroundColor={Colors.EditIconBg}
             onClick={toggleEdit}
           />
-          {/* {isAdmin && user.email !== authEmail && (
+          {user.banned ? (
             <Action
-              name={user.banned ? "key" : "stop"}
+              name="key"
               strokeWidth="2"
-              stroke={user.banned ? Colors.CopyIcon : Colors.StopIcon}
-              backgroundColor="white"
-              onClick={() => setBanModal(true)}
+              stroke={user.email === authEmail ? "#bbb" : Colors.CheckIcon}
+              backgroundColor={
+                user.email === authEmail ? "none" : "hsl(144, 100%, 96%)"
+              }
+              onClick={() => setUnBanModal(true)}
+              disabled={user.email === authEmail}
             />
-          )} */}
-          {isAdmin && user.email !== authEmail && (
+          ) : (
             <Action
-              name="trash"
-              strokeWidth="2.5"
-              stroke={Colors.TrashIcon}
-              backgroundColor={Colors.TrashIconBg}
-              onClick={() => setDeleteModal(index)}
+              name="stop"
+              strokeWidth="2"
+              stroke={user.email === authEmail ? "#bbb" : Colors.StopIcon}
+              backgroundColor={
+                user.email === authEmail ? "none" : Colors.StopIconBg
+              }
+              onClick={() => setBanModal(true)}
+              disabled={user.email === authEmail}
             />
           )}
+          <Action
+            name="trash"
+            strokeWidth="2.5"
+            stroke={user.email === authEmail ? "#bbb" : Colors.TrashIcon}
+            backgroundColor={
+              user.email === authEmail ? "none" : Colors.TrashIconBg
+            }
+            onClick={() => setDeleteModal(index)}
+            disabled={user.email === authEmail}
+          />
         </Td>
       </Tr>
       {showEdit && (
@@ -331,16 +366,19 @@ const Row: FC<RowProps> = ({
                   Role
                 </Text>
                 <Flex as="form">
-                  <TextInput
-                    {...text("role")}
-                    placeholder="Role"
-                    placeholderSize={[13, 14]}
+                  <Select
+                    {...select("role")}
+                    data-lpignore
+                    pl={[3, 24]}
+                    pr={[3, 24]}
                     fontSize={[14, 15]}
                     height={[40, 44]}
                     width={[1, 210, 240]}
-                    pl={[3, 24]}
-                    pr={[3, 24]}
-                    readOnly
+                    options={[
+                      { key: "user", value: "user" },
+                      { key: "admin", value: "admin" }
+                    ]}
+                    disabled={user.email === authEmail}
                   />
                 </Flex>
               </Col>
@@ -430,6 +468,46 @@ const Row: FC<RowProps> = ({
           </Flex>
         </>
       </Modal>
+      <Modal
+        id="table-unban-modal"
+        show={unBanModal}
+        closeHandler={() => setUnBanModal(false)}
+      >
+        <>
+          <H2 mb={24} textAlign="center" bold>
+            Unban user?
+          </H2>
+          <Text mb={24} textAlign="center">
+            Are you sure do you want to unban the user{" "}
+            <Span bold>&quot;{user.email}&quot;</Span>?
+          </Text>
+          <Flex justifyContent="center" mt={4}>
+            {unBanLoading ? (
+              <>
+                <Icon name="spinner" size={20} stroke={Colors.Spinner} />
+              </>
+            ) : unBanMessage.text ? (
+              <Text fontSize={15} color={unBanMessage.color}>
+                {unBanMessage.text}
+              </Text>
+            ) : (
+              <>
+                <Button
+                  color="gray"
+                  mr={3}
+                  onClick={() => setUnBanModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button color="blue" ml={3} onClick={onUnBan}>
+                  <Icon name="key" stroke="white" mr={2} />
+                  Unban
+                </Button>
+              </>
+            )}
+          </Flex>
+        </>
+      </Modal>
     </>
   );
 };
@@ -451,18 +529,19 @@ const UsersTable: FC = () => {
   const [deleteModal, setDeleteModal] = useState(-1);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteMessage, setDeleteMessage] = useMessage();
-  const [formState, { label, checkbox, text }] = useFormState<Form>(
+  const [formState, { label, text }] = useFormState<Form>(
     { skip: "0", limit: "10", all: false },
     { withIds: true }
   );
 
   const [createModal, setCreateModal] = useState(false);
-  const [createFormState, { text: createText }] = useFormState({
-    email: "",
-    password: "",
-    passwordConfirm: "",
-    role: "user"
-  });
+  const [createFormState, { text: createText, select: createSelect }] =
+    useFormState({
+      email: "",
+      password: "",
+      passwordConfirm: "",
+      role: "user"
+    });
   const [createLoading, setCreateLoading] = useState(false);
   const [createFormMessage, setCreateFormMessage] = useMessage();
 
@@ -506,7 +585,8 @@ const UsersTable: FC = () => {
       console.log("here");
       await create({
         email: createFormState.values.email,
-        password: createFormState.values.password
+        password: createFormState.values.password,
+        role: createFormState.values.role
       });
 
       await get(options);
@@ -906,17 +986,19 @@ const UsersTable: FC = () => {
                 Role
               </Text>
               <Flex as="div">
-                <TextInput
-                  {...createText("role")}
-                  placeholder=""
-                  value={"user"}
-                  placeholderSize={[13, 14]}
+                <Select
+                  {...createSelect("role")}
+                  data-lpignore
+                  pl={[3, 24]}
+                  pr={[3, 24]}
                   fontSize={[14, 15]}
                   height={[40, 44]}
                   width={[1, 300, 300]}
-                  pl={[3, 24]}
-                  pr={[3, 24]}
-                  readOnly
+                  options={[
+                    { key: "user", value: "user" },
+                    { key: "admin", value: "admin" }
+                  ]}
+                  disabled={createLoading}
                 />
               </Flex>
             </Col>

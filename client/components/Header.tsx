@@ -50,7 +50,7 @@ const LogoImage = styled.div`
 `;
 
 const Header: FC = () => {
-  const { isAuthenticated } = useStoreState((s) => s.auth);
+  const { isAuthenticated, isAdmin } = useStoreState((s) => s.auth);
   const isMobile = useMedia({ maxWidth: 640 });
 
   const login = !isAuthenticated && (
@@ -128,11 +128,18 @@ const Header: FC = () => {
             pt={0}
             pb="2px"
           >
-            <Li>
-              <ALink href="/users" title="User" fontSize={[14, 16]} isNextLink>
-                Users
-              </ALink>
-            </Li>
+            {isAuthenticated && isAdmin && (
+              <Li>
+                <ALink
+                  href="/users"
+                  title="User"
+                  fontSize={[14, 16]}
+                  isNextLink
+                >
+                  Users
+                </ALink>
+              </Li>
+            )}
             <Li>
               <ALink
                 href="/report"

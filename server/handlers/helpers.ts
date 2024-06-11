@@ -36,6 +36,11 @@ export const verify = (req, res, next) => {
   return next();
 };
 
+export const admin: Handler = (req, res, next) => {
+  if (req.user.admin) return next();
+  throw new CustomError("Unauthorized.", 401);
+};
+
 export const query: Handler = (req, res, next) => {
   const { admin } = req.user || {};
 

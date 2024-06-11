@@ -19,6 +19,7 @@ export interface User {
 export interface NewUser {
   email: string;
   password: string;
+  role: string;
 }
 
 export interface BanUser {
@@ -30,6 +31,7 @@ export interface EditUser {
   email?: string;
   password?: string;
   banned?: boolean;
+  role?: string;
 }
 
 export interface UsersQuery {

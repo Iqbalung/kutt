@@ -9,6 +9,7 @@ const selectable = [
   "users.banned",
   "users.email",
   "users.apikey",
+  "users.role",
   "users.created_at",
   "users.updated_at"
 ];
@@ -94,6 +95,8 @@ export const find = async (match: Partial<User>) => {
 interface Add {
   email: string;
   password: string;
+  verified?: boolean;
+  role?: string;
 }
 
 export const add = async (params: Add, user?: User) => {
@@ -101,8 +104,16 @@ export const add = async (params: Add, user?: User) => {
     email: params.email,
     password: params.password,
     verification_token: uuid(),
-    verification_expires: addMinutes(new Date(), 60).toISOString()
+    verification_expires: addMinutes(new Date(), 60).toISOString(),
+    verified: false,
+    role: params.role || "user"
   };
+
+  if (params.verified) {
+    data.verified = true;
+    data.verification_token = null;
+    data.verification_expires = null;
+  }
 
   if (user) {
     await knex<User>("users")

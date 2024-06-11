@@ -1,5 +1,6 @@
 import { Handler } from "express";
 import query from "../queries";
+import bcrypt from "bcryptjs";
 import * as utils from "../utils";
 
 export const get = async (req, res) => {
@@ -26,7 +27,7 @@ export const getUsers: Handler = async (req, res) => {
   const data = users.map(utils.sanitize.user).map((user) => {
     return {
       ...user,
-      role: utils.isAdmin(user.email) ? "admin" : "user"
+      role: utils.isAdmin(user) ? "admin" : "user"
     };
   });
 
@@ -39,9 +40,14 @@ export const getUsers: Handler = async (req, res) => {
 };
 
 export const create: Handler = async (req, res) => {
+  const salt = await bcrypt.genSalt(12);
+  const password = await bcrypt.hash(req.body.password, salt);
+
   const user = await query.user.add({
     email: req.body.email,
-    password: req.body.password
+    password: password,
+    verified: true,
+    role: req.body.role || "user"
   });
 
   return res.status(201).send({
@@ -63,13 +69,31 @@ export const edit: Handler = async (req, res) => {
   }
 
   if (req.body.password) {
-    user.password = req.body.password;
+    const salt = await bcrypt.genSalt(12);
+    user.password = await bcrypt.hash(req.body.password, salt);
   }
 
-  if (req.body.banned && req.user.admin && req.user.id !== user.id) {
+  if (typeof req.body.banned !== "undefined" && req.body.banned !== null) {
+    if (req.user.id === user.id) {
+      throw new utils.CustomError("You cannot ban yourself.");
+    }
+
     const banned = req.body.banned === "true" || req.body.banned === true;
     user.banned = banned;
     user.banned_by_id = req.user.id;
+  }
+
+  if (req.body.role) {
+    const validRoles = ["user", "admin"];
+    if (!validRoles.includes(req.body.role)) {
+      throw new utils.CustomError("Invalid role.");
+    }
+
+    if (req.user.id === user.id) {
+      throw new utils.CustomError("You cannot change your own role.");
+    }
+
+    user.role = req.body.role;
   }
 
   await query.user.update({ id: user.id }, user);
@@ -87,11 +111,6 @@ export const removeById: Handler = async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (req.user.id === userId) {
     throw new Error("You cannot delete yourself.");
-  }
-
-  // verify is the user is an admin
-  if (!req.user.admin) {
-    throw new Error("You do not have permission to delete users.");
   }
 
   const user = await query.user.find({ id: userId });
