@@ -2,8 +2,6 @@ import { Handler } from "express";
 import query from "../queries";
 import bcrypt from "bcryptjs";
 import * as utils from "../utils";
-import passport from "passport";
-import bcrypt from "bcryptjs";
 
 
 export const get = async (req, res) => {
